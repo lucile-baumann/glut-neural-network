@@ -42,18 +42,25 @@ public:
     void newInput(const Type& inputType);
     void feedforward(const Layer& couche);
     void backpropagation();
-    Type get_max_out_index() const;
+    void updateStats();
     std::array<Neurone, MAXNODES>& getLayer(const Layer& layer);
     const unsigned int getLayerSize(const Layer& layer) const ;
     std::pair<float, float> minmaxWeightLayer(const Layer& layer);
-    const float getNoise() { return bruit; }
+    const float getNoise() { return _bruit; }
     std::array<float, MAXNODES> goalOutputData;
-
+    Type& getType() { return _type; }
+    int getInstantSuccess() { return _success[_iteration % 100]; }
+    int getGlobalSuccess() { return _globalSuccess * 100.0 / _iteration; }
+    int getIteration() { return _iteration; }
 private:
-    std::array<Neurone, MAXNODES> inputLayer;
-    std::array<Neurone, MAXNODES> hiddenLayer;
-    std::array<Neurone, MAXNODES> outputLayer;
-    float bruit = 0.05f;
+    std::array<Neurone, MAXNODES> _inputLayer;
+    std::array<Neurone, MAXNODES> _hiddenLayer;
+    std::array<Neurone, MAXNODES> _outputLayer;
+    float _bruit = 0.05f;
+    Type _type;
+    int _globalSuccess;
+    std::array<int, 100> _success;
+    int _iteration;
 };
 
 #endif

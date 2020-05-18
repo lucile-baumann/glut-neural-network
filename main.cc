@@ -8,13 +8,9 @@
 
 #include "reseau.h"
 
-static int iteration;
 static Reseau Network;
-static Type currentType;
-static int GlobalSuccess;
-static int Success3[100];
 
-static void Line(int x1, int y1, int x2, int y2)
+void Line(int x1, int y1, int x2, int y2)
 {
     glBegin(GL_LINES);
     glVertex2f(x1, y1);
@@ -22,7 +18,7 @@ static void Line(int x1, int y1, int x2, int y2)
     glEnd();
 }
 
-static void Rectangle(int x1, int y1, int x2, int y2, bool rempli)
+void Rectangle(int x1, int y1, int x2, int y2, bool rempli)
 {
     if (rempli)
         glBegin(GL_POLYGON);
@@ -35,12 +31,12 @@ static void Rectangle(int x1, int y1, int x2, int y2, bool rempli)
     glEnd();
 }
 
-static void displayText(std::string text)
+void displayText(const std::string text)
 {
     glutBitmapString(GLUT_BITMAP_8_BY_13, (const unsigned char*)text.c_str());
 }
 
-static void display_input()
+void display_input()
 {
     glRasterPos2f(80, 70);
     displayText("Input Layer");
@@ -69,13 +65,12 @@ std::string TypeToString(const Type& type)
     case Type::Triangle: return "Triangle";
     }
 }
-static void display()
+
+void display()
 {
-    // White background
     glClearColor(1,1,1, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Black pencil
     glColor3f(0, 0, 0);
 
     Line(20, 2, 980, 2);
@@ -91,7 +86,7 @@ static void display()
     glRasterPos2f(pos, line1);
     displayText("Iteration");
     glRasterPos2f(pos, line2);
-    displayText(std::to_string(iteration));
+    displayText(std::to_string(Network.getIteration()));
 
     pos += 150.f;
     glRasterPos2f(pos, line1);
@@ -109,19 +104,19 @@ static void display()
     glRasterPos2f(pos, line1);
     displayText("Input");
     glRasterPos2f(pos, line2);
-    displayText(TypeToString(currentType));
+    displayText(TypeToString(Network.getType()));
 
     pos += 150.f;
     glRasterPos2f(pos, line1);
     displayText("Global success");
     glRasterPos2f(pos, line2);
-    displayText(std::to_string(GlobalSuccess * 100.0 / iteration) + "%");
+    displayText(std::to_string(Network.getGlobalSuccess()) + "%");
 
     pos += 150.f;
     glRasterPos2f(pos, line1);
     displayText("Instant success");
     glRasterPos2f(pos, line2);
-    displayText(std::to_string(Success3[iteration % 100]) + "%");
+    displayText(std::to_string(Network.getInstantSuccess()) + "%");
 
     display_input();
 
@@ -182,31 +177,19 @@ static void display()
         typeX += 10;
         Rectangle(typeX, typeY, typeX + 10, typeY + 10, true);
     }
-
-    // Mise à jour des statistiques
-    auto resultat = Network.get_max_out_index();
-    if (currentType == resultat)
-    {
-        ++GlobalSuccess;
-        for (int j = 0; j < 100; ++j)
-            ++Success3[j];
-    }
-    Success3[iteration % 100] = 0;
+    Network.updateStats();
 
     glColor3f(0, 0, 0);
     glutSwapBuffers();
 }
 
-static void idle_callback()
+void idle_callback()
 {
-    ++iteration;
+    auto newType = static_cast<Type>(rand() % 6);
 
-    currentType = static_cast<Type>(rand() % 6);
-
-    Network.newInput(currentType);
+    Network.newInput(newType);
     Network.feedforward(Reseau::Layer::Hidden);
     Network.feedforward(Reseau::Layer::Output);
-
     Network.backpropagation();
 
     glutPostRedisplay();
@@ -214,20 +197,18 @@ static void idle_callback()
 
 int main(int argc, char** argv)
 {
-    static int g_Width = 1000;         // Initial window width
-    static int g_Height = 500; // Initial window height
+    const int g_Width = 1000;
+    const int g_Height = 500;
 
-    // GLUT Window Initialization:
     glutInit(&argc, argv);
     glutInitWindowSize(g_Width, g_Height);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-    glutCreateWindow("Neural Network GLUT example - LucileM");
+    glutCreateWindow("NN with GLUT");
 
     srand( time(0));
 
     Network.init();
     
-    // Register callbacks
     glutDisplayFunc(display);
     glutIdleFunc(idle_callback);
 

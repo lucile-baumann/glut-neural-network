@@ -10,6 +10,7 @@
 
 void Reseau::init()
 {
+    _iteration = 0;
     for (uint8_t layer = 0; layer < 3; ++layer)
     {
         for (auto& node : getLayer(static_cast<Layer>(layer)))
@@ -28,32 +29,41 @@ void Reseau::init()
     }
 }
 
-Type Reseau::get_max_out_index() const
+void Reseau::updateStats()
 {
     for (unsigned j = 0; j < getLayerSize(Layer::Output) - 1; ++j)
     {
         bool found = true;
         for (int i = j + 1; i < getLayerSize(Layer::Output); ++i)
         {
-            if (outputLayer[j].etat <= outputLayer[i].etat)
+            if (_outputLayer[j].etat <= _outputLayer[i].etat)
             {
                 found = false;
                 break;
             }
         }
         if (found)
-            return static_cast<Type>(j);
+        {
+            auto resultat = static_cast<Type>(j);
+            if (_type == resultat)
+            {
+                ++_globalSuccess;
+                for (int j = 0; j < 100; ++j)
+                    ++_success[j];
+            }
+            _success[_iteration % 100] = 0;
+        }
     }
-    return Type::HorizontalLine;
 }
 
 void Reseau::newInput(const Type& inputType)
 {
-    // TODO: Remise à zéro de la couche d'entrée
+    ++_iteration;
+    _type = inputType;
     goalOutputData.fill(0.f);
     goalOutputData[static_cast<int>(inputType)] = 1.f;
 
-    for (auto& node : inputLayer)
+    for (auto& node : _inputLayer)
     {
         node.etat = 0.f;
     }
@@ -64,14 +74,14 @@ void Reseau::newInput(const Type& inputType)
     {
         int place = rand() % LARGEUR_IMAGE;
         for (int j = 0; j < LARGEUR_IMAGE; ++j)
-            inputLayer[place * LARGEUR_IMAGE + j].etat = 1.0;
+            _inputLayer[place * LARGEUR_IMAGE + j].etat = 1.0;
         break;
     }
     case Type::VerticalLine:
     {
         int place = rand() % LARGEUR_IMAGE;
         for (int i = 0; i < LARGEUR_IMAGE; ++i)
-            inputLayer[i * LARGEUR_IMAGE + place].etat = 1.0;
+            _inputLayer[i * LARGEUR_IMAGE + place].etat = 1.0;
         break;
     }
     case Type::Square:
@@ -82,7 +92,7 @@ void Reseau::newInput(const Type& inputType)
         for (int i = -side + placei; i <= side + placei; ++i)
         {
             for (int j = -side + placej; j <= side + placej; ++j)
-                inputLayer[i * LARGEUR_IMAGE + j].etat = 1.f;
+                _inputLayer[i * LARGEUR_IMAGE + j].etat = 1.f;
         }
         break;
     }
@@ -96,7 +106,7 @@ void Reseau::newInput(const Type& inputType)
         {
             for (int i = 0; i < (size - j); ++i)
             {
-                inputLayer[(i + placei) * LARGEUR_IMAGE + j + placej].etat = 1.f;
+                _inputLayer[(i + placei) * LARGEUR_IMAGE + j + placej].etat = 1.f;
             }
         }
         break;
@@ -108,8 +118,8 @@ void Reseau::newInput(const Type& inputType)
         int placei = (rand() % (LARGEUR_IMAGE - 2 * size)) + size;
         for (int k = -size; k <= size; ++k)
         {
-            inputLayer[placei * LARGEUR_IMAGE + placej + k].etat = 1.f;
-            inputLayer[(placei + k)*LARGEUR_IMAGE + placej].etat = 1.f;
+            _inputLayer[placei * LARGEUR_IMAGE + placej + k].etat = 1.f;
+            _inputLayer[(placei + k)*LARGEUR_IMAGE + placej].etat = 1.f;
         }
         break;
     }
@@ -120,7 +130,7 @@ void Reseau::newInput(const Type& inputType)
             for (int kj = 0; kj < LARGEUR_IMAGE; ++kj)
             {
                 if (((ki % 2 == 0) && (kj % 2 == 1)) || ((ki % 2 == 1) && (kj % 2 == 0)))
-                    inputLayer[ki*LARGEUR_IMAGE + kj].etat = 1.f;
+                    _inputLayer[ki*LARGEUR_IMAGE + kj].etat = 1.f;
             }
         }
         break;
@@ -131,7 +141,7 @@ void Reseau::newInput(const Type& inputType)
     {
         for (int j = 0; j < LARGEUR_IMAGE; ++j)
         {
-            inputLayer[i * LARGEUR_IMAGE + j].etat += (rand() % 100) / 100.f * bruit - bruit / 2.f;
+            _inputLayer[i * LARGEUR_IMAGE + j].etat += (rand() % 100) / 100.f * _bruit - _bruit / 2.f;
         }
     }
 }
@@ -140,9 +150,9 @@ std::array<Reseau::Neurone, MAXNODES>& Reseau::getLayer(const Layer& layer)
 {
     switch (layer)
     {
-        case Layer::Input: return inputLayer;
-        case Layer::Hidden: return hiddenLayer;
-        case Layer::Output: return outputLayer;
+        case Layer::Input: return _inputLayer;
+        case Layer::Hidden: return _hiddenLayer;
+        case Layer::Output: return _outputLayer;
     }
 }
 
@@ -180,7 +190,7 @@ tERRORtype Reseau::get_derivees() const
     // calculate dE/ds for output nodes 
     for (int node = 0; node < getLayerSize(Layer::Output); ++node)
     {
-        auto state = outputLayer[node].etat;
+        auto state = _outputLayer[node].etat;
         Deriv1[Layer::Output][node] = goalOutputData[node] - state;
         Deriv2[Layer::Output][node] = Deriv1[Layer::Output][node] * state * (1.0 - state);
     }
@@ -191,10 +201,10 @@ tERRORtype Reseau::get_derivees() const
         Deriv1[Layer::Hidden][hidden_node] = 0.f;
         for (int node = 0; node < getLayerSize(Layer::Output); ++node)
         {
-            auto weight = outputLayer[node].poids[hidden_node];
+            auto weight = _outputLayer[node].poids[hidden_node];
             Deriv1[Layer::Hidden][hidden_node] += Deriv2[Layer::Output][node] * weight;
         }
-        auto state = hiddenLayer[hidden_node].etat;
+        auto state = _hiddenLayer[hidden_node].etat;
         Deriv2[Layer::Hidden][hidden_node] = Deriv1[Layer::Hidden][hidden_node] * state * (1.0 - state);
     }
     return Deriv2;
